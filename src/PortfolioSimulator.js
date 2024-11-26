@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "./App.css"; // Import App.css
+import Cookies from "js-cookie";
 import {
   LineChart,
   Line,
@@ -9,63 +9,112 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import "./App.css"; // Import your CSS styles
 
 const PortfolioSimulator = () => {
-  // Parameters
-  const initialPortfolio = 4_000_000; // Starting portfolio
-  const monthlyDraw = 250_000 / 12; // Monthly withdrawal
-  const inflationRate = 0.03; // Average annual inflation rate
-  const annualReturn = 0.08; // Average annual return
-  const ssaBenefit = 3_500; // Monthly social security benefit
-  const years = 30; // Duration in years
+  // State for inputs
+  const [initialPortfolio, setInitialPortfolio] = useState(parseFloat(Cookies.get("initialPortfolio")) || 1000000);
+  const [annualDraw, setAnnualDraw] = useState(parseFloat(Cookies.get("annualDraw")) || 100000);
+  const [inflationRate, setInflationRate] = useState(parseFloat(Cookies.get("inflationRate")) || 0.03);
+  const [annualReturn, setAnnualReturn] = useState(parseFloat(Cookies.get("annualReturn")) || 0.08);
+  const [ssaBenefit, setSsaBenefit] = useState(parseFloat(Cookies.get("ssaBenefit")) || 300);
+  const [years, setYears] = useState(30);
 
-  // State to hold simulation data
+  // State for chart data
   const [data, setData] = useState([]);
 
+  // Save updated values to cookies whenever they change
   useEffect(() => {
-    // Simulation logic
+    Cookies.set("initialPortfolio", initialPortfolio, { expires: 7 });
+    Cookies.set("annualDraw", annualDraw, { expires: 7 });
+    Cookies.set("inflationRate", inflationRate, { expires: 7 });
+    Cookies.set("annualReturn", annualReturn, { expires: 7 });
+    Cookies.set("ssaBenefit", ssaBenefit, { expires: 7 });
+    Cookies.set("years", years, { expires: 7 });
+  }, [initialPortfolio, annualDraw, inflationRate, annualReturn, ssaBenefit, years]);
+
+  // Update chart data whenever inputs change
+  useEffect(() => {
     const portfolioValues = [initialPortfolio];
-    const annualGrowth = [];
-    const annualDraw = [];
     const chartData = [];
 
     for (let year = 1; year <= years; year++) {
-      // Calculate annual growth
       const growth = portfolioValues[year - 1] * annualReturn;
-      annualGrowth.push(growth);
+      const draw = annualDraw * (1 + inflationRate) ** year - (ssaBenefit * 12);
+      const endOfYearBalance = portfolioValues[year - 1] + growth - draw;
 
-      // Calculate annual draw
-      const draw = monthlyDraw * 12 * (1 + inflationRate) ** year;
-      annualDraw.push(draw - ssaBenefit * 12);
+      if (endOfYearBalance < 0)
+        break;
 
-      // Update portfolio
-      const endOfYearBalance =
-        portfolioValues[year - 1] + growth - draw;
       portfolioValues.push(endOfYearBalance);
 
-      // Prepare data for chart
       chartData.push({
         year,
         portfolioBalance: endOfYearBalance,
         annualGrowth: growth,
-        annualDraw: draw - ssaBenefit * 12,
+        annualDraw: draw,
       });
     }
 
     setData(chartData);
-  }, [initialPortfolio, monthlyDraw, inflationRate, annualReturn, ssaBenefit, years]);
+  }, [initialPortfolio, annualDraw, inflationRate, annualReturn, ssaBenefit, years]);
 
   return (
     <div className="container">
-      <h2 className="heading">Portfolio Balance, Growth, and Draw Over {years} Years</h2>
-        <div className="chart">
-          <ResponsiveContainer width="100%" height="100%">
+      <h2 className="heading">Portfolio Simulator</h2>
+
+      {/* Input Fields */}
+      <div className="inputs">
+        <label>
+          Initial Portfolio:
+          <input
+            type="number"
+            value={initialPortfolio}
+            onChange={(e) => setInitialPortfolio(parseFloat(e.target.value) || 0)}
+          />
+        </label>
+        <label>
+          Annual Draw:
+          <input
+            type="number"
+            value={annualDraw}
+            onChange={(e) => setAnnualDraw(parseFloat(e.target.value) || 0)}
+          />
+        </label>
+        <label>
+          Inflation Rate (%):
+          <input
+            type="number"
+            step="0.01"
+            value={inflationRate * 100}
+            onChange={(e) => setInflationRate(parseFloat(e.target.value) / 100 || 0)}
+          />
+        </label>
+        <label>
+          Annual Return (%):
+          <input
+            type="number"
+            step="0.01"
+            value={annualReturn * 100}
+            onChange={(e) => setAnnualReturn(parseFloat(e.target.value) / 100 || 0)}
+          />
+        </label>
+        <label>
+          SSA Benefit (Monthly):
+          <input
+            type="number"
+            value={ssaBenefit}
+            onChange={(e) => setSsaBenefit(parseFloat(e.target.value) || 0)}
+          />
+        </label>
+      </div>
+
+      {/* Chart */}
+      <div className="chart">
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid stroke="#ccc" />
-            <XAxis
-              dataKey="year"
-              label={{ value: "Year", position: "insideBottom", offset: -5 }}
-            />
+            <XAxis dataKey="year" label={{ value: "Year", position: "insideBottom", offset: -5 }} />
             <YAxis
               label={{
                 value: "Amount ($ in thousands)",
